@@ -1,0 +1,262 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>SQL Query Builder</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 20px;
+        }
+
+        .criteria-row {
+            display: flex;
+            align-items: center;
+            margin-bottom: 10px;
+        }
+
+        .criteria-row .placeholder {
+            width: 80px; /* Adjust width to match the logical operator dropdown */
+        }
+
+        .criteria-row select,
+        .criteria-row input {
+            margin-right: 10px;
+        }
+
+        select.operator {
+            width: 80px; /* Set width of the operator dropdown */
+        }
+
+        button.add-criteria,
+        button.remove-criteria {
+            margin-left: 10px;
+        }
+
+        #sql-query {
+            margin-top: 20px;
+            white-space: pre-wrap;
+            background: #f4f4f4;
+            padding: 10px;
+            border: 1px solid #ccc;
+        }
+
+        #error-messages {
+            margin-top: 10px;
+            padding: 10px;
+            background-color: #f8d7da;
+            color: #721c24;
+            border: 1px solid #f5c6cb;
+            display: none;
+        }
+    </style>
+</head>
+<body>
+    <h1>SQL Query Builder</h1>
+    <form id="query-builder">
+        <div class="criteria-row" data-index="0">
+            <div class="placeholder"></div>
+            <select class="column-name">
+                <!-- Options will be dynamically added via JavaScript -->
+            </select>
+            <select class="operator">
+                <!-- Options will be dynamically added via JavaScript -->
+            </select>
+            <input type="text" class="criteria-value" placeholder="Enter value">
+            <button type="button" class="add-criteria">+</button>
+        </div>
+        <button type="button" id="build-query">Build</button>
+        <button type="button" id="reset-errors">Reset Errors</button>
+    </form>
+    <div id="error-messages"></div>
+    <pre id="sql-query"></pre>
+
+    <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+    <script>
+        // Array of column names
+        const columnNames = ['column1', 'column2', 'column3'];
+        
+        // Array of operators
+        const operators = ['=', '<', '>', '<=', '>='];
+
+        let rowIndex = 0;
+
+        $(document).ready(function() {
+            // Populate column options for the first row
+            populateOptions($('.column-name'), columnNames);
+            // Populate operator options for the first row
+            populateOptions($('.operator'), operators);
+
+            $(document).on('click', '.add-criteria', addCriteriaRow);
+            $(document).on('click', '.remove-criteria', removeCriteriaRow);
+            $(document).on('input change', '.column-name, .operator, .criteria-value', function() {
+                const row = $(this).closest('.criteria-row');
+                const rowId = row.data('index');
+                const column = row.find('.column-name').val();
+                const operator = row.find('.operator').val();
+                const value = row.find('.criteria-value').val();
+                if (column && operator && value) {
+                    removeError(rowId, column);
+                }
+            });
+            $('#build-query').click(buildQuery);
+            $('#reset-errors').click(resetErrors);
+            updateButtons();
+        });
+
+        function addCriteriaRow(event) {
+            rowIndex++;
+            const criteriaRow = $('<div class="criteria-row"></div>');
+            criteriaRow.attr('data-index', rowIndex);
+
+            const logicalOperatorSelect = $('<select class="logical-operator"></select>');
+            ['AND', 'OR'].forEach(op => {
+                logicalOperatorSelect.append(`<option value="${op}">${op}</option>`);
+            });
+            criteriaRow.append(logicalOperatorSelect);
+
+            const columnSelect = $('<select class="column-name"></select>');
+            populateOptions(columnSelect, columnNames); // Populate column options
+            criteriaRow.append(columnSelect);
+
+            const operatorSelect = $('<select class="operator"></select>');
+            populateOptions(operatorSelect, operators); // Populate operator options
+            criteriaRow.append(operatorSelect);
+
+            const valueInput = $('<input type="text" class="criteria-value" placeholder="Enter value">');
+            criteriaRow.append(valueInput);
+
+            const addButton = $('<button type="button" class="add-criteria">+</button>');
+            criteriaRow.append(addButton);
+
+            const removeButton = $('<button type="button" class="remove-criteria">-</button>');
+            criteriaRow.append(removeButton);
+
+            // Insert the new row below the current row
+            const currentRow = $(event.target).closest('.criteria-row');
+            currentRow.after(criteriaRow);
+
+            updateButtons();
+        }
+
+        function removeCriteriaRow() {
+            const rowToRemove = $(this).closest('.criteria-row');
+            const rowId = rowToRemove.data('index');
+            const columnName = rowToRemove.find('.column-name').val();
+            rowToRemove.remove();
+            updateButtons();
+            removeError(rowId, columnName);
+
+            // Check if no error messages are left and reset rowIndex if true
+            if ($('#error-messages div').length === 0) {
+                resetRowIndex();
+            }
+        }
+
+        function updateButtons() {
+            const rows = $('.criteria-row');
+            rows.each(function(index) {
+                const addBtn = $(this).find('.add-criteria');
+                const removeBtn = $(this).find('.remove-criteria');
+
+                if (index === 0) {
+                    addBtn.show();
+                    removeBtn.hide();
+                } else if (index === rows.length - 1) {
+                    addBtn.show();
+                    removeBtn.show();
+                } else {
+                    addBtn.hide();
+                    removeBtn.show();
+                }
+            });
+        }
+
+        function buildQuery() {
+            const rows = $('.criteria-row');
+            let whereClauses = [];
+            let currentClause = [];
+            let hasError = false;
+
+            rows.each(function(index) {
+                const rowId = $(this).data('index');
+                const column = $(this).find('.column-name').val();
+                const operator = $(this).find('.operator').val();
+                const value = $(this).find('.criteria-value').val();
+
+                // Basic required field validation
+                if (!column || !operator || !value) {
+                    displayError(rowId, column);
+                    hasError = true;
+                    return; // Continue to next row
+                }
+
+                if (index > 0) {
+                    const logicalOperator = $(this).find('.logical-operator').val();
+                    if (logicalOperator === 'OR') {
+                        if (currentClause.length > 0) {
+                            whereClauses.push(`(${currentClause.join(' AND ')})`);
+                            currentClause = [];
+                        }
+                        currentClause.push(`${column} ${operator} '${value}'`);
+                    } else {
+                        currentClause.push(`${column} ${operator} '${value}'`);
+                    }
+                } else {
+                    currentClause.push(`${column} ${operator} '${value}'`);
+                }
+            });
+
+            if (!hasError && currentClause.length > 0) {
+                whereClauses.push(`(${currentClause.join(' AND ')})`);
+            }
+
+            if (!hasError) {
+                const whereClause = whereClauses.join(' OR ');
+                const sqlQuery = `SELECT * FROM table_name WHERE ${whereClause};`;
+                $('#sql-query').text(sqlQuery);
+                hideError();
+                resetRowIndex();
+            }
+        }
+
+        function populateOptions(selectElement, optionsArray) {
+            selectElement.empty();
+            optionsArray.forEach(option => {
+                selectElement.append(`<option value="${option}">${option}</option>`);
+            });
+        }
+
+        function displayError(rowId, columnName) {
+            const errorMessages = $('#error-messages');
+            if (!errorMessages.find(`div[data-id="${rowId}-${columnName}"]`).length) {
+                errorMessages.append(`<div data-id="${rowId}-${columnName}">${columnName} field is required.</div>`);
+                errorMessages.show();
+            }
+        }
+
+        function removeError(rowId, columnName) {
+            const errorMessages = $('#error-messages');
+            errorMessages.find(`div[data-id="${rowId}-${columnName}"]`).remove();
+            if (errorMessages.find('div').length === 0) {
+                errorMessages.hide();
+                resetRowIndex();
+            }
+        }
+
+        function hideError() {
+            $('#error-messages').hide();
+        }
+
+        function resetErrors() {
+            $('#error-messages').empty().hide();
+            resetRowIndex();
+        }
+
+        function resetRowIndex() {
+            rowIndex = 0;
+        }
+    </script>
+</body>
+</html>

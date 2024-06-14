@@ -1,0 +1,132 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>SQL Query Builder</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 20px;
+        }
+
+        .criteria-row {
+            margin-bottom: 10px;
+        }
+
+        .criteria-row select,
+        .criteria-row input {
+            margin-right: 10px;
+        }
+
+        button.add-criteria {
+            margin-left: 10px;
+        }
+
+        #sql-query {
+            margin-top: 20px;
+            white-space: pre-wrap;
+            background: #f4f4f4;
+            padding: 10px;
+            border: 1px solid #ccc;
+        }
+    </style>
+</head>
+<body>
+    <h1>SQL Query Builder</h1>
+    <form id="query-builder">
+        <div class="criteria-row">
+            <select class="column-name">
+                <option value="column1">Column 1</option>
+                <option value="column2">Column 2</option>
+                <option value="column3">Column 3</option>
+                <!-- Add more columns as needed -->
+            </select>
+            <input type="text" class="criteria-value" placeholder="Enter value">
+            <button type="button" class="add-criteria">+</button>
+        </div>
+        <button type="button" id="build-query">Build</button>
+    </form>
+    <pre id="sql-query"></pre>
+
+    <script>
+        document.addEventListener('DOMContentLoaded', function() {
+            document.querySelector('.add-criteria').addEventListener('click', addCriteriaRow);
+            document.getElementById('build-query').addEventListener('click', buildQuery);
+        });
+
+        function addCriteriaRow() {
+            const criteriaRow = document.createElement('div');
+            criteriaRow.classList.add('criteria-row');
+
+            const operatorSelect = document.createElement('select');
+            operatorSelect.classList.add('operator');
+            ['AND', 'OR'].forEach(op => {
+                const option = document.createElement('option');
+                option.value = op;
+                option.textContent = op;
+                operatorSelect.appendChild(option);
+            });
+            criteriaRow.appendChild(operatorSelect);
+
+            const columnSelect = document.createElement('select');
+            columnSelect.classList.add('column-name');
+            ['column1', 'column2', 'column3'].forEach(col => {
+                const option = document.createElement('option');
+                option.value = col;
+                option.textContent = col;
+                columnSelect.appendChild(option);
+            });
+            criteriaRow.appendChild(columnSelect);
+
+            const valueInput = document.createElement('input');
+            valueInput.type = 'text';
+            valueInput.classList.add('criteria-value');
+            valueInput.placeholder = 'Enter value';
+            criteriaRow.appendChild(valueInput);
+
+            const addButton = document.createElement('button');
+            addButton.type = 'button';
+            addButton.classList.add('add-criteria');
+            addButton.textContent = '+';
+            addButton.addEventListener('click', addCriteriaRow);
+            criteriaRow.appendChild(addButton);
+
+            document.getElementById('query-builder').insertBefore(criteriaRow, document.getElementById('build-query'));
+        }
+
+        function buildQuery() {
+            const rows = document.querySelectorAll('.criteria-row');
+            let whereClauses = [];
+            let currentClause = [];
+
+            rows.forEach((row, index) => {
+                const column = row.querySelector('.column-name').value;
+                const value = row.querySelector('.criteria-value').value;
+                if (index > 0) {
+                    const operator = row.querySelector('.operator').value;
+                    if (operator === 'OR') {
+                        if (currentClause.length > 0) {
+                            whereClauses.push(`(${currentClause.join(' AND ')})`);
+                            currentClause = [];
+                        }
+                        currentClause.push(`${column} = '${value}'`);
+                    } else {
+                        currentClause.push(`${column} = '${value}'`);
+                    }
+                } else {
+                    currentClause.push(`${column} = '${value}'`);
+                }
+            });
+
+            if (currentClause.length > 0) {
+                whereClauses.push(`(${currentClause.join(' AND ')})`);
+            }
+
+            const whereClause = whereClauses.join(' OR ');
+            const sqlQuery = `SELECT * FROM table_name WHERE ${whereClause};`;
+            document.getElementById('sql-query').textContent = sqlQuery;
+        }
+    </script>
+</body>
+</html>

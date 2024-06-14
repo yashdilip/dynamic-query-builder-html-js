@@ -1,0 +1,180 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>SQL Query Builder</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 20px;
+        }
+
+        .criteria-row {
+            display: flex;
+            align-items: center;
+            margin-bottom: 10px;
+        }
+
+        .criteria-row select,
+        .criteria-row input,
+        .placeholder {
+            margin-right: 10px;
+        }
+
+        select.logical-operator, .placeholder {
+            width: 80px; /* Set width of the operator dropdown */
+        }
+
+        button.add-criteria,
+        button.remove-criteria {
+            margin-left: 10px;
+        }
+
+        #sql-query {
+            margin-top: 20px;
+            white-space: pre-wrap;
+            background: #f4f4f4;
+            padding: 10px;
+            border: 1px solid #ccc;
+        }
+    </style>
+</head>
+<body>
+    <h1>SQL Query Builder</h1>
+    <form id="query-builder">
+        <div class="criteria-row">
+            <div class="placeholder"></div>
+            <select class="column-name">
+              <!-- Options will be dynamically added via JavaScript -->
+            </select>
+            <select class="operator">
+              <!-- Options will be dynamically added via JavaScript -->
+            </select>
+            <input type="text" class="criteria-value" placeholder="Enter value">
+            <button type="button" class="add-criteria">+</button>
+        </div>
+        <button type="button" id="build-query">Build</button>
+    </form>
+    <pre id="sql-query"></pre>
+
+    <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+    <script>
+        // Array of column names
+        const columnNames = ['column1', 'column2', 'column3'];
+        
+        // Array of operators
+        const operators = ['=', '<', '>', '<=', '>='];
+
+        $(document).ready(function() {
+            // Populate column options for the first row
+            populateOptions($('.column-name'), columnNames);
+            // Populate operator options for the first row
+            populateOptions($('.operator'), operators);
+            
+            $(document).on('click', '.add-criteria', addCriteriaRow);
+            $(document).on('click', '.remove-criteria', removeCriteriaRow);
+            $('#build-query').click(buildQuery);
+            updateButtons();
+        });
+
+        function addCriteriaRow(event) {
+            const criteriaRow = $('<div class="criteria-row"></div>');
+
+            const logicalOperatorSelect = $('<select class="logical-operator"></select>');
+            ['AND', 'OR'].forEach(op => {
+                logicalOperatorSelect.append(`<option value="${op}">${op}</option>`);
+            });
+            criteriaRow.append(logicalOperatorSelect);
+
+            const columnSelect = $('<select class="column-name"></select>');
+            populateOptions(columnSelect, columnNames); // Populate column options
+            criteriaRow.append(columnSelect);
+
+            const operatorSelect = $('<select class="operator"></select>');
+            populateOptions(operatorSelect, operators); // Populate operator options
+            criteriaRow.append(operatorSelect);
+
+            const valueInput = $('<input type="text" class="criteria-value" placeholder="Enter value">');
+            criteriaRow.append(valueInput);
+
+            const addButton = $('<button type="button" class="add-criteria">+</button>');
+            criteriaRow.append(addButton);
+
+            const removeButton = $('<button type="button" class="remove-criteria">-</button>');
+            criteriaRow.append(removeButton);
+
+            // Insert the new row below the current row
+            const currentRow = $(event.target).closest('.criteria-row');
+            currentRow.after(criteriaRow);
+
+            updateButtons();
+        }
+
+        function removeCriteriaRow() {
+            $(this).closest('.criteria-row').remove();
+            updateButtons();
+        }
+
+        function updateButtons() {
+            const rows = $('.criteria-row');
+            rows.each(function(index) {
+                const addBtn = $(this).find('.add-criteria');
+                const removeBtn = $(this).find('.remove-criteria');
+
+                if (index === 0) {
+                    addBtn.show();
+                    removeBtn.hide();
+                } else if (index === rows.length - 1) {
+                    addBtn.show();
+                    removeBtn.show();
+                } else {
+                    addBtn.hide();
+                    removeBtn.show();
+                }
+            });
+        }
+
+        function buildQuery() {
+            const rows = $('.criteria-row');
+            let whereClauses = [];
+            let currentClause = [];
+
+            rows.each(function(index) {
+                const column = $(this).find('.column-name').val();
+                const operator = $(this).find('.operator').val();
+                const value = $(this).find('.criteria-value').val();
+                if (index > 0) {
+                    const logicalOperator = $(this).find('.logical-operator').val();
+                    if (logicalOperator === 'OR') {
+                        if (currentClause.length > 0) {
+                            whereClauses.push(`(${currentClause.join(' AND ')})`);
+                            currentClause = [];
+                        }
+                        currentClause.push(`${column} ${operator} '${value}'`);
+                    } else {
+                        currentClause.push(`${column} ${operator} '${value}'`);
+                    }
+                } else {
+                    currentClause.push(`${column} ${operator} '${value}'`);
+                }
+            });
+
+            if (currentClause.length > 0) {
+                whereClauses.push(`(${currentClause.join(' AND ')})`);
+            }
+
+            const whereClause = whereClauses.join(' OR ');
+            const sqlQuery = `SELECT * FROM table_name WHERE ${whereClause};`;
+            $('#sql-query').text(sqlQuery);
+        }
+
+        function populateOptions(selectElement, optionsArray) {
+            selectElement.empty();
+            optionsArray.forEach(option => {
+                selectElement.append(`<option value="${option}">${option}</option>`);
+            });
+        }
+    </script>
+</body>
+</html>
